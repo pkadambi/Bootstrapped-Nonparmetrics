@@ -1,4 +1,4 @@
-# Dp-Divergence-API
+# Bootstrapped Nonparametrics
 
 The purpose of this repo is to provide a set of functions to calculate a bootstrapped asymptotic estimate the Dp divergence, a non-parametric f-divergence described here: https://arxiv.org/pdf/1408.1182.pdf
 
