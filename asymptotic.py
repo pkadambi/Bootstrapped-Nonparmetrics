@@ -68,10 +68,10 @@ def asymptotic_estimator(samp_sizes, div_estimates):
 
     #constraints to ensure that asymptotic value is [0,1], exponent absolute value b>0
 
-    constraints = ((0., 0., 1.), (np.inf, 1., 1.))
-
-    result = curve_fit(_powlaw, samp_sizes, div_estimates, bounds=constraints)
-
+    constraints = ((-np.inf, -np.inf, 0.), (0., 0.01, 1.))
+    initial_guess = (-.5, -.5, div_estimates[-1])
+    result = curve_fit(_powlaw, samp_sizes, div_estimates, bounds=constraints, p0=initial_guess)[0]
+    print(result)
     powlaw_constants = {'a': result[0], 'b': result[1], 'asymp': result[2]}
     asymp_value = result[2]
     return powlaw_constants, asymp_value
@@ -85,8 +85,8 @@ def display_subsample_size_warining():
         print("Consider reducing `max_subsamp_size` if asymptotic estimate is not providing an improved estimate")
         print("------------------------------------------------------------------------")
 
-def estimate_asmptotic_value(class0data, class1data, num_subsamp_sizes=100, nruns= 50, min_subsamp_size=None,
-                             max_subsamp_size=None, graph_method='1nn', k=None, debug=False):
+def estimate_asmptotic_value(class0data, class1data, num_subsamp_sizes=100, nruns= 1, min_subsamp_size=None,
+                             max_subsamp_size=None, graph_method='1nn', k=None, n_mc_iters=10, debug=False):
     #TODO: `k` for >1-nn, and for MST
     '''
     :param xdata: input dataset
@@ -99,12 +99,13 @@ def estimate_asmptotic_value(class0data, class1data, num_subsamp_sizes=100, nrun
     xdata = np.vstack([class0data, class1data]) #TODO: for unbalanced classes
 
     if max_subsamp_size is None:
-        max_subsamp_size = int(np.floor(np.shape(class0data)[0]/2))
+        max_subsamp_size = int(np.floor(np.shape(class0data)[0] )*.5)
         print(f'Assigned maximum subsample size {max_subsamp_size}')
 
-    if max_subsamp_size > np.floor(np.shape(class0data)[0]/2):
+    if max_subsamp_size > np.floor(np.shape(class0data)[0]*.5): #limit maximum subsample size to n_class/2
+        #TODO: is this limitation required?
         display_subsample_size_warining()
-        max_subsamp_size = int(np.floor(np.shape(class0data)[0]/2))
+        max_subsamp_size = int(np.floor(np.shape(class0data)[0])*.5)
 
     if min_subsamp_size is None or min_subsamp_size<np.shape(xdata)[1]:
         min_subsamp_size = int(np.shape(xdata)[1])
@@ -116,22 +117,37 @@ def estimate_asmptotic_value(class0data, class1data, num_subsamp_sizes=100, nrun
         print(f'Set num_subsamp_sizes to:\t {num_subsamp_sizes}')
 
 
-    values = np.zeros([nruns, num_subsamp_sizes])
-    mc_iterations = int(np.ceil(np.shape(xdata)[0]/2))
     subsamp_sizes = generate_sample_sizes(num_subsamp_sizes, min_subsamp_size,
                                           max_subsamp_size, samp_spacing='logunif')
+
+    num_subsamp_sizes = len(subsamp_sizes)
+    values = np.zeros([nruns, num_subsamp_sizes])
+
+    mciters = np.ones_like(subsamp_sizes) * n_mc_iters
+
+    # Commented out code for performing #MC iterations based on subsample size, this causes asymptotic to underestimate for some reason (fix)
+    # for jj, subsampsize in enumerate(subsamp_sizes):
+    #     mc_iterations = int(max((1/nruns) * np.floor(np.shape(xdata)[0] / subsampsize), 2))
+    #     mciters.append(mc_iterations)
+
     for ii in tqdm.tqdm(range(nruns)):
-        for jj, sampsize in enumerate(subsamp_sizes):
+        for jj, subsampsize in enumerate(subsamp_sizes):
+            mc_iterations = mciters[jj]
             rslts = np.zeros(mc_iterations)
+            # print('Started subsample size', sampsize)
+            # TODO: this is sampling *with* replacement, investigate the effect of sampling *without* replacement
+            # https://stackoverflow.com/questions/53891169/numpy-take-many-samples-with-no-replacement-by-row
             for kk in range(mc_iterations):
-                inds = np.random.choice(np.arange(len(class0data)), sampsize, replace=False)
-                rslts[kk] =  dp_div(class0data[inds, :], class1data[inds, :])[0]
+                inds = np.random.choice(np.arange(len(class0data)), subsampsize, replace=False)
+                rslts[kk] =  dp_div(class0data[inds, :], class1data[inds, :], method=graph_method)[0]
             values[ii, jj] = np.mean(rslts)
 
     dpdivmeans = np.mean(values, axis=0)
-
+    # print(dpdivmeans)
+    import pdb
+    # pdb.set_trace()
     powerlaw_constants, asymp_estimate = asymptotic_estimator(subsamp_sizes, dpdivmeans)
     if debug:
-        return asymp_estimate,  powerlaw_constants, values, subsamp_sizes,  mc_iterations
+        return asymp_estimate,  powerlaw_constants, values, subsamp_sizes,  mciters
     else:
         return asymp_estimate

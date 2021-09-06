@@ -75,7 +75,6 @@ def compute_neighbors(A, B, k=1, algorithm='auto'):
     return nns
 
 
-# TODO: implement for MST, requires a fast mst implementation
 
 def dp_div(A, B, method='1nn'):
     '''
@@ -105,6 +104,8 @@ def dp_div(A, B, method='1nn'):
         # print('Errors '+str(errors))
         Dp = 1 - ((M + N) / (2 * M * N)) * errors
 
+    # TODO: improve speed for MST, requires a fast mst implementation
+    # mst is at least 10x slower than knn approach
     elif method == 'mst':
         dense_eudist = squareform(pdist(data))
         eudist_csr = csr_matrix(dense_eudist)
@@ -121,9 +122,15 @@ def dp_div(A, B, method='1nn'):
 
     return Dp, Cij
 
-def calculate_asymptotic_dp():
 
-    pass
+
+
+
+
+
+'''
+Code below is for experiment and random functions
+'''
 
 def compute_entropy_for_clusters(data_clusters, teacher_model, temperature):
     import tqdm
@@ -295,7 +302,7 @@ def time_difference_tester():
     print('MST elapsed time:\t', end2 - end)
 
 
-def test_dp_eqals_onehalf():
+def test_dp_equals_onehalf():
     '''
 
     true dpdiv for this test is 0.5 (when ndims=8)
